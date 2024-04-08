@@ -268,22 +268,22 @@ VALUES
 
 -- Create AssetTypes table to hold asset types
 CREATE TABLE Budgeting.AssetTypes (
-    TypeID INT PRIMARY KEY,
+    TypeID INT PRIMARY KEY IDENTITY(1,1),
     TypeName VARCHAR(50) UNIQUE
 );
 
 -- Populate AssetTypes table with predefined asset types
-INSERT INTO Budgeting.AssetTypes (TypeID, TypeName) VALUES
-(1, 'Cash'),
-(2, 'Investments'),
-(3, 'Real Estate'),
-(4, 'Vehicles'),
-(5, 'Retirement Accounts'),
-(6, 'Business Interests'),
-(7, 'Personal Property'),
-(8, 'Intellectual Property'),
-(9, 'Insurance Policies'),
-(10, 'Other Financial Assets');
+INSERT INTO Budgeting.AssetTypes (TypeName) VALUES
+('Cash'),
+('Investments'),
+('Real Estate'),
+('Vehicles'),
+('Retirement Accounts'),
+('Business Interests'),
+('Personal Property'),
+('Intellectual Property'),
+('Insurance Policies'),
+('Other Financial Assets');
 
 -- Create Asset table with Type column referencing AssetTypes
 CREATE TABLE Budgeting.Asset (
@@ -335,11 +335,28 @@ CREATE TABLE Budgeting.FinancialInstitutions (
     CONSTRAINT FK_AddressID FOREIGN KEY (AddressID) REFERENCES Budgeting.Address(AddressID)
 );
 
+CREATE FUNCTION ValidateRoutingNumber (@RoutingNumber VARCHAR(20))
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @IsValid BIT = 0;
+
+    -- Check if the Routing Number matches the format NNNN-NNNN-N
+    IF @RoutingNumber LIKE '[0-9][0-9][0-9][0-9]-[0-9][0-9][0-9][0-9]-[0-9]'
+        SET @IsValid = 1;
+
+    RETURN @IsValid;
+END;
+
+-- Add table-level check constraint for RoutingNumber
+ALTER TABLE Budgeting.FinancialInstitutions
+ADD CONSTRAINT CHK_RoutingNumber CHECK (dbo.ValidateRoutingNumber(RoutingNumber) = 1);
+
 INSERT INTO Budgeting.FinancialInstitutions (Name, RoutingNumber, AddressID)
-VALUES ('Santander Bank', '123456789', 4);
+VALUES ('Santander Bank', '1234-5678-9', 2);
 
 CREATE TABLE Budgeting.Accounts (
-    AccountNumber INT IDENTITY(1,1),
+    AccountNumber VARCHAR(20),
     InstitutionID INT,
     UserID INT,
     AccountName VARCHAR(100),
@@ -348,8 +365,26 @@ CREATE TABLE Budgeting.Accounts (
     CONSTRAINT FK_Accounts_UserID FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID)
 );
 
-INSERT INTO Budgeting.Accounts (InstitutionID, UserID, AccountName)
-VALUES (2, 1, 'Savings Account');
+CREATE FUNCTION ValidateAccountNumber (@AccountNumber VARCHAR(20))
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @IsValid BIT = 0;
+
+    -- Check if the account number is between 8 and 12 digits
+    IF LEN(@AccountNumber) BETWEEN 8 AND 12 AND @AccountNumber NOT LIKE '%[^0-9]%'
+        SET @IsValid = 1;
+
+    RETURN @IsValid;
+END;
+
+-- Add table-level check constraint for AccountNumber
+ALTER TABLE Budgeting.Accounts
+ADD CONSTRAINT CHK_AccountNumber CHECK (dbo.ValidateAccountNumber(AccountNumber) = 1);
+
+
+INSERT INTO Budgeting.Accounts (AccountNumber, InstitutionID, UserID, AccountName)
+VALUES ('123456789', 5, 1, 'Savings Account');
 
 CREATE TABLE Budgeting.Category (
     CategoryID INT PRIMARY KEY IDENTITY(1,1),
@@ -375,6 +410,149 @@ VALUES
     ('Home Maintenance', 'Expenses for home repairs, renovations, and maintenance.'),
     ('Insurance', 'Other insurance premiums such as life insurance, disability insurance, or long-term care insurance.');
    
+   
+CREATE TABLE Budgeting.Budget (
+    BudgetID INT PRIMARY KEY IDENTITY(1,1),
+    UserID INT,
+    CategoryID INT,
+    Amount MONEY,
+    StartDate DATE,
+    EndDate DATE,
+    CONSTRAINT FK_Budget_UserID FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID),
+    CONSTRAINT FK_Budget_CategoryID FOREIGN KEY (CategoryID) REFERENCES Budgeting.Category(CategoryID)
+);
+
+CREATE FUNCTION ValidateDates(@StartDate DATE, @EndDate DATE)
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @IsValid BIT = 0;
+
+    IF @StartDate < @EndDate
+        SET @IsValid = 1; -- Valid dates
+    ELSE
+        SET @IsValid = 0; -- Invalid dates
+
+    RETURN @IsValid;
+END;
+
+ALTER TABLE Budgeting.Budget
+ADD CONSTRAINT CHK_StartDateBeforeEndDate CHECK (dbo.ValidateDates(StartDate, EndDate) = 1);
+
+-- violates CHK_StartDateBeforeEndDate, since startDate > EndDate
+INSERT INTO Budgeting.Budget (UserID, CategoryID, Amount, StartDate, EndDate)
+VALUES (1, 4, 500.00, '2024-03-01', '2024-01-30');
+
+-- should work
+INSERT INTO Budgeting.Budget (UserID, CategoryID, Amount, StartDate, EndDate)
+VALUES (1, 4, 500.00, '2024-03-01', '2024-04-30');
+
+CREATE TABLE Budgeting.Inflow (
+    InflowID INT IDENTITY(1,1) PRIMARY KEY,
+    AccountNumber VARCHAR(20),
+    InstitutionID INT,
+    Amount MONEY,
+    Date DATE,
+    CategoryID INT,
+    CONSTRAINT FK_Inflow_AccountID FOREIGN KEY (AccountNumber, InstitutionID) REFERENCES Budgeting.Accounts(AccountNumber, InstitutionID),
+    CONSTRAINT FK_Inflow_CategoryID FOREIGN KEY (CategoryID) REFERENCES Budgeting.Category(CategoryID)
+);
+
+INSERT INTO Budgeting.Inflow (AccountNumber, InstitutionID, Amount, Date, CategoryID)
+VALUES ('123456789', 5, 1000.00, '2024-04-10', 1);
+
+CREATE TABLE Budgeting.Outflow (
+    OutflowID INT IDENTITY(1,1) PRIMARY KEY,
+    AccountNumber VARCHAR(20),
+    InstitutionID INT,
+    Amount MONEY,
+    Date DATE,
+    CategoryID INT,
+    CONSTRAINT FK_Outflow_AccountID FOREIGN KEY (AccountNumber, InstitutionID) REFERENCES Budgeting.Accounts(AccountNumber, InstitutionID),
+    CONSTRAINT FK_Outflow_CategoryID FOREIGN KEY (CategoryID) REFERENCES Budgeting.Category(CategoryID)
+);
+
+INSERT INTO Budgeting.Outflow (AccountNumber, InstitutionID, Amount, Date, CategoryID)
+VALUES ('123456789', 5, 1000.00, '2024-04-10', 1);
+
+CREATE TABLE Budgeting.Goals (
+    GoalID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT,
+    Description VARCHAR(255),
+    TargetAmount MONEY,
+    CurrentAmount MONEY DEFAULT 0.0,
+    TargetDate DATE,
+    Status VARCHAR(30),
+    CONSTRAINT FK_Goals_UserID FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID)
+);
+
+-- accepted values for status are 'IN_PROGRESS', 'COMPLETED' 
+INSERT INTO Budgeting.Goals (UserID, Description, TargetAmount, TargetDate, Status)
+VALUES (1, 'Save for vacation', 2000.00, '2024-12-31', 'IN_PROGRESS');
+
+-- Budgeting is an audit table, so whenever a subscription plan is availed by the user, 
+-- the Bills must be generated accordingly
+-- TODO: Write a trigger to generate the Bills when A new plan is availed by the User
+CREATE TABLE Budgeting.Bills (
+    BillID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT,
+    BillingDate DATE,
+    Amount MONEY,
+    PaymentStatus VARCHAR(50),
+    CONSTRAINT FK_Bills_UserID FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID)
+);
+
+CREATE TABLE Budgeting.SubscriptionPlan (
+    PlanID INT IDENTITY(1,1) PRIMARY KEY,
+    ProductName VARCHAR(100),
+    CostPerPeriod MONEY
+);
+
+-- Inserting the Annual Plan
+INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod)
+VALUES ('Annual Plan', 120.00);
+
+-- Inserting the Monthly Plan
+INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod)
+VALUES ('Monthly Plan', 10.00);
+
+-- TODO: Subscription End Date, Billing Frequency, Status need to be calculated on INSERT
+-- TODO: None of the Start Date - End Date must overlap
+CREATE TABLE Budgeting.SubscriptionPlanUserMap (
+    PlanID INT,
+    UserID INT,
+    SubscriptionStartDate DATE,
+    SubscriptionEndDate DATE,
+    BillingFrequency INT,
+    Status VARCHAR(50),
+    PRIMARY KEY (PlanID, UserID, SubscriptionStartDate),
+    FOREIGN KEY (PlanID) REFERENCES Budgeting.SubscriptionPlan(PlanID),
+    FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID)
+);
+
+INSERT INTO Budgeting.SubscriptionPlanUserMap (PlanID, UserID, SubscriptionStartDate)
+VALUES 
+    (1, 1, '2024-04-01'), -- adding Annual plan
+    (2, 1, '2025-04-01'); -- adding Monthly plan
+    
+    
+ 
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 
