@@ -178,9 +178,26 @@ CLOSE SYMMETRIC KEY Project_SymmetricKey;
 
 -- END SQL Query to retrieve all data from Budgeting.Users
 
-SELECT * FROM Budgeting.Users;
+-- Function to calculate the Age:
+CREATE FUNCTION CalculateAge (@Birthdate DATE)
+RETURNS INT
+AS
+BEGIN
+    DECLARE @Age INT;
+    
+    SET @Age = DATEDIFF(YEAR, @Birthdate, GETDATE()) -
+               CASE
+                   WHEN DATEADD(YEAR, DATEDIFF(YEAR, @Birthdate, GETDATE()), @Birthdate) > GETDATE() THEN 1
+                   ELSE 0
+               END;
+    
+    RETURN @Age;
+END;
 
--- Nagalekha 07/04 Adding now
+-- Find Age of all users
+SELECT UserID, FirstName, LastName, Birthdate, dbo.CalculateAge(Birthdate) AS Age
+FROM Budgeting.Users;
+
 
 CREATE TABLE Budgeting.Address (
     AddressID INT IDENTITY(1,1) PRIMARY KEY,
@@ -534,39 +551,74 @@ INSERT INTO Budgeting.SubscriptionPlanUserMap (PlanID, UserID, SubscriptionStart
 VALUES 
     (1, 1, '2024-04-01'), -- adding Annual plan
     (2, 1, '2025-04-01'); -- adding Monthly plan
+
     
-    
- 
+-- accepted values for PaymentType: 'DEBIT'/'CREDIT'
+CREATE TABLE Budgeting.PaymentMethod (
+    PaymentMethodID INT IDENTITY(1,1) PRIMARY KEY,
+    UserID INT,
+    CardNumber VARCHAR(20),
+    PaymentType VARCHAR(100),
+    CardHolderName VARCHAR(100),
+    ExpiryDate DATE,
+    SecurityCode VARCHAR(10),
+    IssuingBank VARCHAR(100),
+    CreditLimit MONEY,
+    BillingAddressID INT,
+    CONSTRAINT FK_PaymentMethod_UserID FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID),
+    CONSTRAINT FK_PaymentMethod_BillingAddressID FOREIGN KEY (BillingAddressID) REFERENCES Budgeting.Address(AddressID)
+);
+
+-- Validate SecurityCode
+CREATE FUNCTION ValidateSecurityCode (@SecurityCode VARCHAR(10))
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @IsValid BIT = 0;
+
+    -- Check if the security code matches the regular expression pattern
+    IF @SecurityCode LIKE '[0-9][0-9][0-9][0-9]' OR @SecurityCode LIKE '[0-9][0-9][0-9]'
+        SET @IsValid = 1;
+
+    RETURN @IsValid;
+END;
+
+-- Validate Card Number
+ALTER FUNCTION ValidateCardNumber (@CardNumber VARCHAR(20))
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @IsValid BIT = 0;
+
+    -- Check if the card number is between 14 and 16 digits
+    IF LEN(@CardNumber) BETWEEN 14 AND 16 AND @CardNumber NOT LIKE '%[^0-9]%'
+        SET @IsValid = 1;
+
+    RETURN @IsValid;
+END;
+
+ALTER TABLE Budgeting.PaymentMethod
+ADD CONSTRAINT CHK_ValidSecurityCode CHECK (dbo.ValidateSecurityCode(SecurityCode) = 1);
+
+ALTER TABLE Budgeting.PaymentMethod
+ADD CONSTRAINT CHK_ValidCardNumber CHECK (dbo.ValidateCardNumber(CardNumber) = 1);
 
 
+-- Inserting a CREDIT card payment method
+INSERT INTO Budgeting.PaymentMethod (UserID, CardNumber, PaymentType, CardHolderName, ExpiryDate, SecurityCode, IssuingBank, CreditLimit, BillingAddressID)
+VALUES (1, '371234567890123', 'CREDIT', 'John Doe', '2025-12-31', '123', 'Bank of America', 1000.00, 2);
 
+CREATE TABLE Budgeting.Payments (
+    PaymentID INT IDENTITY(1,1) PRIMARY KEY,
+    PaymentDate DATE,
+    Amount MONEY,
+    PaymentMethodID INT,
+    CONSTRAINT FK_Payments_PaymentMethodID FOREIGN KEY (PaymentMethodID) REFERENCES Budgeting.PaymentMethod(PaymentMethodID)
+);
 
+-- TODO: When a payment is made (new row is inserted) we need to make sure that we 
+-- check whether Payments.PaymentDate < PaymentMethod.ExpiryDate
+-- WHERE Payments.PaymentMethodID == PaymentMethod.PaymentMethodID
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+INSERT INTO Budgeting.Payments (PaymentDate, Amount, PaymentMethodID)
+VALUES ('2024-04-07', 500.00, 2);
