@@ -616,9 +616,63 @@ CREATE TABLE Budgeting.Payments (
     CONSTRAINT FK_Payments_PaymentMethodID FOREIGN KEY (PaymentMethodID) REFERENCES Budgeting.PaymentMethod(PaymentMethodID)
 );
 
+CREATE TRIGGER UpdateBillingStatus
+ON Budgeting.Payments
+AFTER INSERT
+AS
+BEGIN
+    UPDATE Budgeting.Bills
+    SET PaymentStatus = 'Paid'
+    WHERE BillID IN (SELECT BillID FROM inserted);
+END;
+
 -- TODO: When a payment is made (new row is inserted) we need to make sure that we 
 -- check whether Payments.PaymentDate < PaymentMethod.ExpiryDate
 -- WHERE Payments.PaymentMethodID == PaymentMethod.PaymentMethodID
+
+CREATE FUNCTION ValidatePaymentAmount (@PaymentID INT)
+RETURNS BIT
+AS
+BEGIN
+    DECLARE @IsValid BIT = 0;
+    DECLARE @BillAmount MONEY;
+
+    SELECT @BillAmount = b.Amount
+    FROM Budgeting.Bills b
+    INNER JOIN inserted i ON b.UserID = i.UserID
+    WHERE b.PaymentStatus = 'Unpaid'
+    ORDER BY b.BillingDate DESC;
+
+    IF @BillAmount IS NOT NULL
+    BEGIN
+        IF EXISTS (SELECT 1 FROM inserted WHERE PaymentID = @PaymentID AND Amount = @BillAmount)
+            SET @IsValid = 1;
+    END;
+    
+    RETURN @IsValid;
+END;
+
+-- Alter the Payments table to add a CHECK constraint
+ALTER TABLE Budgeting.Payments
+ADD CONSTRAINT CHK_ValidPaymentAmount 
+CHECK (dbo.ValidatePaymentAmount(PaymentID) = 1);
+
+
+CREATE VIEW Budgeting.BudgetSummary AS
+SELECT 
+    b.UserID,
+    MONTH(i.Date) AS [Month],
+    b.Amount AS BudgetAmount,
+    SUM(CASE WHEN t.Type = 'Inflow' THEN i.Amount ELSE 0 END) AS CurrentInflows,
+    SUM(CASE WHEN t.Type = 'Outflow' THEN o.Amount ELSE 0 END) AS CurrentOutflows,
+    b.Amount - SUM(CASE WHEN t.Type = 'Outflow' THEN o.Amount ELSE 0 END) AS RemainingAmount
+FROM Budgeting.Budget b
+LEFT JOIN Budgeting.Inflow i ON b.CategoryID = i.CategoryID
+LEFT JOIN Budgeting.Outflow o ON b.CategoryID = o.CategoryID
+CROSS APPLY (VALUES ('Inflow'), ('Outflow')) AS t(Type)
+GROUP BY b.UserID, MONTH(i.Date), b.Amount;
+
+
 
 INSERT INTO Budgeting.Payments (PaymentDate, Amount, PaymentMethodID)
 VALUES ('2024-04-07', 500.00, 2);
