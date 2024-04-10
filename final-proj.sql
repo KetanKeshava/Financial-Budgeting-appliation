@@ -657,6 +657,7 @@ ALTER TABLE Budgeting.Payments
 ADD CONSTRAINT CHK_ValidPaymentAmount 
 CHECK (dbo.ValidatePaymentAmount(PaymentID) = 1);
 
+---Views
 
 CREATE VIEW Budgeting.BudgetSummary AS
 SELECT 
@@ -672,6 +673,179 @@ LEFT JOIN Budgeting.Outflow o ON b.CategoryID = o.CategoryID
 CROSS APPLY (VALUES ('Inflow'), ('Outflow')) AS t(Type)
 GROUP BY b.UserID, MONTH(i.Date), b.Amount;
 
+
+---------- User Financial Overview --- 
+CREATE VIEW UserFinancialOverview AS
+SELECT 
+    u.UserID,
+    u.FirstName,
+    u.LastName,
+    u.Email,
+    u.Income,
+    SUM(i.Amount) AS TotalInflows,
+    SUM(o.Amount) AS TotalOutflows,
+    (SUM(i.Amount) - SUM(o.Amount)) AS NetCashFlow,
+    (SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) AS TotalAssets,
+    (SELECT SUM(l.Amount) FROM Budgeting.Loan l WHERE l.UserID = u.UserID) AS TotalLiabilities,
+    ((SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) - (SELECT SUM(l.Amount) FROM Budgeting.Loan l WHERE l.UserID = u.UserID)) AS NetWorth
+FROM 
+    Budgeting.Users u
+LEFT JOIN 
+    Budgeting.Inflow i ON u.UserID = i.UserID
+LEFT JOIN 
+    Budgeting.Outflow o ON u.UserID = o.UserID
+GROUP BY 
+    u.UserID, u.FirstName, u.LastName, u.Email, u.Income;
+
+   
+   ----Monthly Budget Performance View---
+   CREATE VIEW MonthlyBudgetPerformance AS
+SELECT 
+    b.UserID,
+    MONTH(o.Date) AS Month,
+    b.CategoryID,
+    c.Name AS CategoryName,
+    b.Amount AS BudgetAmount,
+    SUM(o.Amount) AS ActualAmount,
+    (b.Amount - SUM(o.Amount)) AS Variance
+FROM 
+    Budgeting.Budget b
+LEFT JOIN 
+    Budgeting.Outflow o ON b.CategoryID = o.CategoryID
+LEFT JOIN 
+    Budgeting.Category c ON b.CategoryID = c.CategoryID
+GROUP BY 
+    b.UserID, MONTH(o.Date), b.CategoryID, c.Name, b.Amount;
+
+   --- Asset Allocation View --- 
+   CREATE VIEW AssetAllocation AS
+SELECT 
+    UserID,
+    TypeID,
+    TypeName,
+    SUM(Value) AS TotalValue,
+    SUM(Value) / (SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = a.UserID) AS Percentage
+FROM 
+    Budgeting.Asset a
+JOIN 
+    Budgeting.AssetTypes at ON a.TypeID = at.TypeID
+GROUP BY 
+    UserID, TypeID, TypeName;
+
+---- Debt allocation view --- 
+   CREATE VIEW DebtOverview AS
+SELECT 
+    UserID,
+    SUM(Amount) AS TotalDebt,
+    AVG(Amount) AS AverageMonthlyPayment,
+    SUM(Amount) / (SELECT Income FROM Budgeting.Users WHERE UserID = l.UserID) AS DebtToIncomeRatio
+FROM 
+    Budgeting.Loan l
+GROUP BY 
+    UserID;
+
+   
+---Financial Goals View -- 
+   CREATE VIEW FinancialGoalProgress AS
+SELECT 
+    g.UserID,
+    g.GoalID,
+    g.Description,
+    g.TargetAmount,
+    g.CurrentAmount,
+    g.TargetDate,
+    CASE 
+        WHEN g.Status = 'COMPLETED' THEN 'Completed'
+        WHEN g.TargetDate < GETDATE() THEN 'Overdue'
+        ELSE 'In Progress'
+    END AS Status
+FROM 
+    Budgeting.Goals g;
+
+----Transaction History View----
+ CREATE VIEW TransactionHistory AS
+SELECT 
+    UserID,
+    TransactionID,
+    'Inflow' AS TransactionType,
+    AccountNumber,
+    InstitutionID,
+    Amount,
+    Date
+FROM 
+    Budgeting.Inflow
+UNION ALL
+SELECT 
+    UserID,
+    TransactionID,
+    'Outflow' AS TransactionType,
+    AccountNumber,
+    InstitutionID,
+    Amount,
+    Date
+FROM 
+    Budgeting.Outflow;
+
+   
+----Budget Category Breakdown view ----
+   CREATE VIEW BudgetCategoryBreakdown AS
+SELECT 
+    UserID,
+    CategoryID,
+    Name AS CategoryName,
+    SUM(Amount) AS TotalAmount
+FROM 
+    Budgeting.Outflow o
+JOIN 
+    Budgeting.Category c ON o.CategoryID = c.CategoryID
+GROUP BY 
+    UserID, CategoryID, Name;
+
+ ----Income and Expense Trend Analysis View--
+   CREATE VIEW IncomeExpenseTrendAnalysis AS
+SELECT 
+    UserID,
+    MONTH(Date) AS Month,
+    'Inflow' AS TransactionType,
+    SUM(Amount) AS TotalAmount
+FROM 
+    Budgeting.Inflow
+GROUP BY 
+    UserID, MONTH(Date)
+UNION ALL
+SELECT 
+    UserID,
+    MONTH(Date) AS Month,
+    'Outflow' AS TransactionType,
+    SUM(Amount) AS TotalAmount
+FROM 
+    Budgeting.Outflow
+GROUP BY 
+    UserID, MONTH(Date);
+
+ -----Financial Health Score View----
+  CREATE VIEW FinancialHealthScore AS
+SELECT 
+    UserID,
+    CASE 
+        WHEN DebtToIncomeRatio <= 0.3 AND SavingsRate >= 0.2 THEN 'Excellent'
+        WHEN DebtToIncomeRatio <= 0.4 AND SavingsRate >= 0.1 THEN 'Good'
+        WHEN DebtToIncomeRatio <= 0.5 AND SavingsRate >= 0.05 THEN 'Fair'
+        ELSE 'Poor'
+    END AS HealthScore
+FROM 
+    (SELECT 
+        l.UserID,
+        SUM(Amount) / u.Income AS DebtToIncomeRatio,
+        (SELECT SUM(Amount) FROM Budgeting.Asset WHERE UserID = l.UserID) / u.Income AS SavingsRate
+    FROM 
+        Budgeting.Loan l
+    JOIN 
+        Budgeting.Users u ON l.UserID = u.UserID
+    GROUP BY 
+        l.UserID, u.Income) AS Subquery;
+
+----Data inserts
 
 
 INSERT INTO Budgeting.Payments (PaymentDate, Amount, PaymentMethodID)
