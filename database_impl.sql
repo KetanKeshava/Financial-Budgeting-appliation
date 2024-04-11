@@ -516,6 +516,7 @@ CREATE TABLE Budgeting.Outflow (
     OutflowID INT IDENTITY(1,1) PRIMARY KEY,
     AccountNumber VARCHAR(20),
     InstitutionID INT,
+    Description VARCHAR(100),
     Amount MONEY,
     Date DATE,
     CategoryID INT,
@@ -779,7 +780,8 @@ GROUP BY
    --- Asset Allocation View --- 
 CREATE VIEW AssetAllocation AS
 SELECT 
-    UserID,
+    a.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
     a.TypeID,
     at.TypeName,
     SUM(Value) AS TotalValue,
@@ -788,20 +790,23 @@ FROM
     Budgeting.Asset a
 JOIN 
     Budgeting.Types at ON a.TypeID = at.TypeID
+  LEFT JOIN Budgeting.Users u on u.userID = a.UserId
 GROUP BY 
-    UserID, a.TypeID, at.TypeName;
+    a.UserID, u.FirstName, u.LastName, a.TypeID, at.TypeName;
 
 ---- Debt allocation view --- 
 CREATE VIEW DebtOverview AS
 SELECT 
-    UserID,
+    d.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
     SUM(d.OutstandingBalance) AS TotalDebt,
     AVG(d.Payment) AS AverageMonthlyPayment,
     SUM(d.OutstandingBalance) / (SELECT Income FROM Budgeting.Users WHERE UserID = d.UserID) AS DebtToIncomeRatio
 FROM 
     Budgeting.Debt d
+    LEFT JOIN Budgeting.Users u on u.userID = d.UserId
 GROUP BY 
-    UserID;
+    d.UserID, u.FirstName, u.LastName;
 
    
 ---Financial Goals View -- 
@@ -849,50 +854,56 @@ FROM
     Budgeting.Outflow o
     LEFT JOIN Budgeting.Accounts a on o.AccountNumber = a.AccountNumber
     LEFT JOIN Budgeting.Users u on u.userID = a.UserId
-    LEFT JOIN Budgeting.FinancialInstitutions fi  on o.InstitutionId = fi.InstitutionId
-   
+    LEFT JOIN Budgeting.FinancialInstitutions fi  on o.InstitutionId = fi.InstitutionId 
+
 ----Budget Category Breakdown view ----
    CREATE VIEW BudgetCategoryBreakdown AS
 SELECT 
-    UserID,
-    CategoryID,
-    Name AS CategoryName,
-    SUM(Amount) AS TotalAmount
+    u.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
+    c.Name AS CategoryName,
+    SUM(o.Amount) AS TotalAmount
 FROM 
     Budgeting.Outflow o
-JOIN 
-    Budgeting.Category c ON o.CategoryID = c.CategoryID
+JOIN Budgeting.Category c ON o.CategoryID = c.CategoryID
+LEFT JOIN Budgeting.Accounts a on o.AccountNumber = a.AccountNumber
+LEFT JOIN Budgeting.Users u on u.userID = a.UserId
 GROUP BY 
-    UserID, CategoryID, Name;
+   u.UserID, u.FirstName, u.LastName, c.Name;
 
  ----Income and Expense Trend Analysis View--
    CREATE VIEW IncomeExpenseTrendAnalysis AS
-SELECT
-	UserID,
-	MONTH(Date) AS Month,
-	'Inflow' AS TransactionType,
-	SUM(Amount) AS TotalAmount
-FROM
-	Budgeting.Inflow
-GROUP BY
-	UserID,
-	MONTH(Date)
+SELECT 
+    u.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
+    DATENAME(MONTH,i.date) AS Month,
+    'Inflow' AS TransactionType,
+    SUM(Amount) AS TotalAmount
+FROM 
+    Budgeting.Inflow i
+    LEFT JOIN Budgeting.Accounts a on a.AccountNumber = i.AccountNumber
+    LEFT JOIN Budgeting.Users u on u.userID = a.UserId
+GROUP BY 
+    u.UserID,u.FirstName, u.LastName, DATENAME(MONTH,i.date)
 UNION ALL
-SELECT
-	UserID,
-	MONTH(Date) AS Month,
-	'Outflow' AS TransactionType,
-	SUM(Amount) AS TotalAmount
-FROM
-	Budgeting.Outflow
-GROUP BY
-	UserID,
-	MONTH(Date);
+SELECT 
+    u.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
+    DATENAME(MONTH,o.date) AS Month,
+    'Outflow' AS TransactionType,
+    SUM(Amount) AS TotalAmount
+FROM 
+    Budgeting.Outflow o
+    LEFT JOIN Budgeting.Accounts a on a.AccountNumber = o.AccountNumber
+    LEFT JOIN Budgeting.Users u on u.userID = a.UserId
+GROUP BY 
+     u.UserID,u.FirstName, u.LastName, DATENAME(MONTH,o.date);
 
  -----Financial Health Score View----
   CREATE VIEW FinancialHealthScore AS
 SELECT 
     UserID,
+    UserName,
     CASE 
         WHEN DebtToIncomeRatio <= 0.3 AND SavingsRate >= 0.2 THEN 'Excellent'
         WHEN DebtToIncomeRatio <= 0.4 AND SavingsRate >= 0.1 THEN 'Good'
@@ -901,15 +912,16 @@ SELECT
     END AS HealthScore
 FROM 
     (SELECT 
-        l.UserID,
-        SUM(Amount) / u.Income AS DebtToIncomeRatio,
-        (SELECT SUM(Amount) FROM Budgeting.Asset WHERE UserID = l.UserID) / u.Income AS SavingsRate
+        d.UserID,
+        Concat(u.FirstName,' ',u.LastName) as UserName,
+        SUM(d.OutstandingBalance) / u.Income AS DebtToIncomeRatio,
+        (SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = d.UserID) / u.Income AS SavingsRate
     FROM 
-        Budgeting.Debt l
+        Budgeting.Debt d
     JOIN 
-        Budgeting.Users u ON l.UserID = u.UserID
+        Budgeting.Users u ON d.UserID = u.UserID
     GROUP BY 
-        l.UserID, u.Income) AS Subquery;
+        d.UserID,u.FirstName, u.LastName, u.Income) AS Subquery;
 
 ----Data inserts
 
