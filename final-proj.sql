@@ -738,7 +738,7 @@ SELECT
     (SUM(i.Amount) - SUM(o.Amount)) AS NetCashFlow,
     (SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) AS TotalAssets,
     (SELECT SUM(l.Amount) FROM Budgeting.Loan l WHERE l.UserID = u.UserID) AS TotalLiabilities,
-    ((SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) - (SELECT SUM(l.Amount) FROM Budgeting.Loan l WHERE l.UserID = u.UserID)) AS NetWorth
+    ((SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) - (SELECT SUM(l.Amount) FROM Budgeting.Debt l WHERE l.UserID = u.UserID)) AS NetWorth
 FROM 
     Budgeting.Users u
 LEFT JOIN 
@@ -791,7 +791,7 @@ SELECT
     AVG(Amount) AS AverageMonthlyPayment,
     SUM(Amount) / (SELECT Income FROM Budgeting.Users WHERE UserID = l.UserID) AS DebtToIncomeRatio
 FROM 
-    Budgeting.Loan l
+    Budgeting.Debt l
 GROUP BY 
     UserID;
 
@@ -890,7 +890,7 @@ FROM
         SUM(Amount) / u.Income AS DebtToIncomeRatio,
         (SELECT SUM(Amount) FROM Budgeting.Asset WHERE UserID = l.UserID) / u.Income AS SavingsRate
     FROM 
-        Budgeting.Loan l
+        Budgeting.Debt l
     JOIN 
         Budgeting.Users u ON l.UserID = u.UserID
     GROUP BY 
