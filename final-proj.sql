@@ -687,6 +687,28 @@ ALTER TABLE Budgeting.Payments
 ADD CONSTRAINT CHK_ValidPaymentAmount 
 CHECK (dbo.ValidatePaymentAmount(PaymentID) = 1);
 
+
+------ Initiate first bill trigger
+CREATE TRIGGER GenerateBillOnSubscription
+ON Budgeting.SubscriptionPlanUserMap
+AFTER INSERT
+AS
+BEGIN
+    -- Insert a new row into the Bills table for each new subscription plan availed by the user
+    INSERT INTO Budgeting.Bills (UserID, BillingDate, Amount, PaymentStatus)
+    SELECT 
+        i.UserID,
+        GETDATE() AS BillingDate,
+        sp.CostPerPeriod AS Amount,
+        'Unpaid' AS PaymentStatus
+    FROM 
+        inserted i
+    INNER JOIN 
+        Budgeting.SubscriptionPlan sp ON i.PlanID = sp.PlanID;
+END;
+
+
+
 ---Views
 
 CREATE VIEW Budgeting.BudgetSummary AS
@@ -702,7 +724,6 @@ LEFT JOIN Budgeting.Inflow i ON b.CategoryID = i.CategoryID
 LEFT JOIN Budgeting.Outflow o ON b.CategoryID = o.CategoryID
 CROSS APPLY (VALUES ('Inflow'), ('Outflow')) AS t(Type)
 GROUP BY b.UserID, MONTH(i.Date), b.Amount;
-
 
 ---------- User Financial Overview --- 
 CREATE VIEW UserFinancialOverview AS
