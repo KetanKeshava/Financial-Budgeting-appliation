@@ -283,24 +283,25 @@ VALUES
 (1, '123#', 'MainStreet', 'Springfield', 'ILLINOIS', '12345', 'USA');
 
 
--- Create AssetTypes table to hold asset types
-CREATE TABLE Budgeting.AssetTypes (
+-- Create Types table to hold asset/debt types
+CREATE TABLE Budgeting.Types (
     TypeID INT PRIMARY KEY IDENTITY(1,1),
-    TypeName VARCHAR(50) UNIQUE
+    TypeName VARCHAR(50) UNIQUE,
+    TypeDescription VARCHAR(255)
 );
 
--- Populate AssetTypes table with predefined asset types
-INSERT INTO Budgeting.AssetTypes (TypeName) VALUES
-('Cash'),
-('Investments'),
-('Real Estate'),
-('Vehicles'),
-('Retirement Accounts'),
-('Business Interests'),
-('Personal Property'),
-('Intellectual Property'),
-('Insurance Policies'),
-('Other Financial Assets');
+-- Populate Types table with predefined asset/debt types
+INSERT INTO Budgeting.Types (TypeName, TypeDescription) VALUES
+('Cash', 'Currency in the form of coins or banknotes.'),
+('Investments', 'Financial assets acquired with the expectation of earning a favorable return.'),
+('Real Estate', 'Property consisting of land and the buildings on it.'),
+('Vehicles', 'Means of transportation such as cars, trucks, motorcycles, etc.'),
+('Retirement Accounts', 'Accounts specifically designated for retirement savings, such as 401(k), IRA, etc.'),
+('Business Interests', 'Ownership or investments in businesses or companies.'),
+('Personal Property', 'Tangible assets owned by an individual, excluding real estate.'),
+('Intellectual Property', 'Legal rights over creations of the mind, such as patents, copyrights, and trademarks.'),
+('Insurance Policies', 'Contracts that provide financial protection against specified risks.'),
+('Other Financial Assets', 'Other types of financial assets not covered by the above categories.');
 
 -- Create Asset table with Type column referencing AssetTypes
 CREATE TABLE Budgeting.Asset (
@@ -312,11 +313,11 @@ CREATE TABLE Budgeting.Asset (
     AcquisitionDate DATE,
     PRIMARY KEY (AssetID, EffectiveDate),
     FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID),
-    FOREIGN KEY (TypeID) REFERENCES Budgeting.AssetTypes(TypeID)
+    FOREIGN KEY (TypeID) REFERENCES Budgeting.Types(TypeID)
 );
 
--- function to fetch asset type ID given Asset
-CREATE FUNCTION GetAssetTypeID (@AssetType VARCHAR(100))
+-- function to fetch asset/debt type ID given Asset
+CREATE FUNCTION GetTypeID (@Type VARCHAR(100))
 RETURNS INT
 AS
 BEGIN
@@ -324,25 +325,54 @@ BEGIN
 
     -- Lookup the TypeID based on the asset type string
     SELECT @TypeID = TypeID
-    FROM Budgeting.AssetTypes
-    WHERE TypeName = @AssetType;
+    FROM Budgeting.Types
+    WHERE TypeName = @Type;
 
     RETURN @TypeID;
 END;
 
 -- START Insert into Budgeting.Asset
 
-DECLARE @AssetType VARCHAR(100) = 'Cash';
+DECLARE @Type VARCHAR(100) = 'Cash';
 DECLARE @TypeID INT;
 
 -- Get the TypeID for the given asset type
-SET @TypeID = dbo.GetAssetTypeID(@AssetType);
+SET @TypeID = dbo.GetTypeID(@Type);
 
 -- Now you can use @TypeID in your insert statement to insert into the "Asset" table
 INSERT INTO Budgeting.Asset (EffectiveDate, UserID, Value, AcquisitionDate, TypeID)
 VALUES ('2024-05-15', 1, 1000.00, '2024-04-01', @TypeID);
 
 -- END Insert into Budgeting.Asset
+
+CREATE TABLE Budgeting.Debt (
+    DebtID INT PRIMARY KEY IDENTITY(1,1),
+    EffectiveDate DATE,
+    UserID INT,
+    TypeID INT,
+    Payment MONEY,
+    Principle MONEY,
+    OutstandingBalance MONEY,
+    InterestRate DECIMAL(5,2),
+    DueDate DATE,
+    CONSTRAINT FK_Debt_UserID FOREIGN KEY (UserID) REFERENCES Budgeting.Users(UserID),
+    CONSTRAINT FK_Debt_TypeID FOREIGN KEY (TypeID) REFERENCES Budgeting.Types(TypeID),
+    CONSTRAINT CHK_InterestRate CHECK (InterestRate >= 0)
+);
+
+-- START Insert into Budgeting.Debt
+
+DECLARE @Type VARCHAR(100) = 'Real Estate';
+DECLARE @TypeID INT;
+
+-- Get the TypeID for the given asset type
+SET @TypeID = dbo.GetTypeID(@Type);
+
+-- Now you can use @TypeID in your insert statement to insert into the "Debt" table
+INSERT INTO Budgeting.Debt (EffectiveDate, UserID, TypeID, Payment, Principle, OutstandingBalance, InterestRate, DueDate)
+VALUES ('2024-04-10', 1, @TypeID, 500.00, 1000.00, 8000.00, 0.05, '2024-05-10');
+
+-- END Insert into Budgeting.Debt
 
 CREATE TABLE Budgeting.FinancialInstitutions (
     InstitutionID INT PRIMARY KEY IDENTITY(1,1),
@@ -522,16 +552,17 @@ CREATE TABLE Budgeting.Bills (
 CREATE TABLE Budgeting.SubscriptionPlan (
     PlanID INT IDENTITY(1,1) PRIMARY KEY,
     ProductName VARCHAR(100),
-    CostPerPeriod MONEY
+    CostPerPeriod MONEY,
+    BillingFrequency INT
 );
 
 -- Inserting the Annual Plan
-INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod)
-VALUES ('Annual Plan', 120.00);
+INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod, BillingFrequency)
+VALUES ('Annual Plan', 120.00, 1);
 
 -- Inserting the Monthly Plan
-INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod)
-VALUES ('Monthly Plan', 10.00);
+INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod, BillingFrequency)
+VALUES ('Monthly Plan', 10.00, 12);
 
 -- TODO: Subscription End Date, Billing Frequency, Status need to be calculated on INSERT
 -- TODO: None of the Start Date - End Date must overlap
@@ -540,7 +571,6 @@ CREATE TABLE Budgeting.SubscriptionPlanUserMap (
     UserID INT,
     SubscriptionStartDate DATE,
     SubscriptionEndDate DATE,
-    BillingFrequency INT,
     Status VARCHAR(50),
     PRIMARY KEY (PlanID, UserID, SubscriptionStartDate),
     FOREIGN KEY (PlanID) REFERENCES Budgeting.SubscriptionPlan(PlanID),
@@ -728,7 +758,7 @@ SELECT
 FROM 
     Budgeting.Asset a
 JOIN 
-    Budgeting.AssetTypes at ON a.TypeID = at.TypeID
+    Budgeting.Types at ON a.TypeID = at.TypeID
 GROUP BY 
     UserID, TypeID, TypeName;
 
