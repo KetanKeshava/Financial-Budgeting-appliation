@@ -623,5 +623,47 @@ VALUES
 
 
 
+-- SubscriptionPlanUserMap
+INSERT INTO Budgeting.SubscriptionPlanUserMap (PlanID, UserID, SubscriptionStartDate, Status)
+VALUES 
+    (1, 2, '2024-04-01', 'Active'),  -- Annual Plan for User 2
+    (2, 3, '2024-04-01', 'Active'),  -- Monthly Plan for User 3
+    (1, 4, '2024-04-01', 'Active'),  -- Annual Plan for User 4
+    (2, 5, '2024-04-01', 'Active'),  -- Monthly Plan for User 5
+    (1, 6, '2024-04-01', 'Active'),  -- Annual Plan for User 6
+    (2, 7, '2024-04-01', 'Active'),  -- Monthly Plan for User 7
+    (1, 8, '2024-04-01', 'Active'),  -- Annual Plan for User 8
+    (2, 9, '2024-04-01', 'Active'),  -- Monthly Plan for User 9
+    (1, 10, '2024-04-01', 'Active'), -- Annual Plan for User 10
+    (2, 11, '2024-04-01', 'Active'); -- Monthly Plan for User 11
+
+-- Payments
+INSERT INTO Budgeting.Payments (PaymentDate, Amount, PaymentMethodID)
+VALUES 
+    ('2024-04-05', 120.00, 2),  -- Payment for Annual Plan by User 2
+    ('2024-04-05', 10.00, 12),   -- Payment for Monthly Plan by User 3
+    ('2024-04-05', 120.00, 4),  -- Payment for Annual Plan by User 4
+    ('2024-04-05', 10.00, 5),   -- Payment for Monthly Plan by User 5
+    ('2024-04-05', 120.00, 6),  -- Payment for Annual Plan by User 6
+    ('2024-04-05', 10.00, 7),   -- Payment for Monthly Plan by User 7
+    ('2024-04-05', 120.00, 8),  -- Payment for Annual Plan by User 8
+    ('2024-04-05', 10.00, 9),   -- Payment for Monthly Plan by User 9
+    ('2024-04-05', 120.00, 10),  -- Payment for Annual Plan by User 10
+    ('2024-04-05', 10.00, 11);   -- Payment for Monthly Plan by User 11
+
+INSERT INTO Budgeting.PaymentMethod (UserID, CardNumber, PaymentType, CardHolderName, ExpiryDate, SecurityCode, IssuingBank, CreditLimit, BillingAddressID)
+VALUES 
+    (2, '371234567890123', 'CREDIT', 'John Doe', '2025-12-31', '123', 'Bank of America', 1000.00, 14),  -- Payment Method for User 2
+    (3, '4567890123456789', 'CREDIT', 'Sarah Smith', '2025-12-31', '456', 'Chase Bank', 2000.00, 16),     -- Payment Method for User 3
+    (4, '7890123456789012', 'DEBIT', 'David Johnson', '2025-12-31', '789', 'Wells Fargo', 1500.00, 17),    -- Payment Method for User 4
+    (5, '9876543210987654', 'CREDIT', 'Emily Brown', '2025-12-31', '987', 'CitiBank', 2000.00, 18),       -- Payment Method for User 5
+    (6, '1234567890123456', 'DEBIT', 'Michael Jones', '2025-12-31', '321', 'US Bank', 2500.00, 19),        -- Payment Method for User 6
+    (7, '6543210987654321', 'CREDIT', 'Amanda Wilson', '2025-12-31', '654', 'Capital One', 3000.00, 20),  -- Payment Method for User 7
+    (8, '3456789012345678', 'DEBIT', 'Robert Taylor', '2025-12-31', '345', 'TD Bank', 3500.00, 21),       -- Payment Method for User 8
+    (9, '5678901234567890', 'CREDIT', 'Jennifer Miller', '2025-12-31', '567', 'HSBC', 4000.00, 22),       -- Payment Method for User 9
+    (10, '8901234567890123', 'DEBIT', 'Christopher Clark', '2025-12-31', '890', 'Barclays', 4500.00, 23), -- Payment Method for User 10
+    (11, '2345678901234567', 'CREDIT', 'Laura Martinez', '2025-12-31', '234', 'BBVA', 5000.00, 24);        -- Payment Method for User 11
+
+
 
 

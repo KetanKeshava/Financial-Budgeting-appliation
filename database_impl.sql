@@ -134,7 +134,7 @@ ENCRYPTION BY CERTIFICATE Project11_Certificate;
 
 
 -- START Insert Data into Budgeting.Users
-DECLARE @Password VARCHAR(100) = 'ketan711@123'; -- Specify the length of the VARCHAR variable
+DECLARE @Password VARCHAR(100) = 'password@123'; -- Specify the length of the VARCHAR variable
 
 IF dbo.ValidatePassword(@Password) = 1
 BEGIN
@@ -152,6 +152,8 @@ BEGIN
 END
 
 -- END Insert Data into Budgeting.Users
+
+SELECT * FROM Budgeting.Users;
 
 
 -- START SQL Query to retrieve all data from Budgeting.Users
@@ -232,13 +234,14 @@ AS
 BEGIN
     DECLARE @IsValid BIT = 0;
 
-    IF @Name LIKE '%[^A-Za-z\s\-''.()]%'
+    IF @Name LIKE '%[^A-Za-z\s\-''.() ]%' -- Added space between the brackets
         SET @IsValid = 0;
     ELSE
         SET @IsValid = 1;
 
     RETURN @IsValid;
 END;
+
 
 -- function to validate zipcode
 CREATE FUNCTION ValidateZipCode(@ZipCode VARCHAR(20))
@@ -277,7 +280,7 @@ ADD CONSTRAINT CHK_ZipCode CHECK (dbo.ValidateZipCode(ZipCode) = 1);
 ALTER TABLE Budgeting.Address
 ADD CONSTRAINT CHK_Country CHECK (dbo.ValidateCityStateCountry(Country) = 1);
 
--- Violating the ValidateStreetNumberOrStreetName check constrain
+-- Insert data into Address Table
 INSERT INTO Budgeting.Address (UserID, StreetNumber, StreetName, City, State, ZipCode, Country)
 VALUES 
 (1, '123#', 'MainStreet', 'Springfield', 'ILLINOIS', '12345', 'USA');
@@ -499,6 +502,7 @@ CREATE TABLE Budgeting.Inflow (
     AccountNumber VARCHAR(20),
     InstitutionID INT,
     Amount MONEY,
+    Description VARCHAR(100),
     Date DATE,
     CategoryID INT,
     CONSTRAINT FK_Inflow_AccountID FOREIGN KEY (AccountNumber, InstitutionID) REFERENCES Budgeting.Accounts(AccountNumber, InstitutionID),
@@ -563,6 +567,10 @@ VALUES ('Annual Plan', 120.00, 1);
 -- Inserting the Monthly Plan
 INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod, BillingFrequency)
 VALUES ('Monthly Plan', 10.00, 12);
+
+-- Inserting the Weekly Plan
+INSERT INTO Budgeting.SubscriptionPlan (ProductName, CostPerPeriod, BillingFrequency)
+VALUES ('Weekly Plan', 10.00, 1);
 
 -- TODO: Subscription End Date, Billing Frequency, Status need to be calculated on INSERT
 -- TODO: None of the Start Date - End Date must overlap
@@ -737,17 +745,17 @@ SELECT
     SUM(o.Amount) AS TotalOutflows,
     (SUM(i.Amount) - SUM(o.Amount)) AS NetCashFlow,
     (SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) AS TotalAssets,
-    (SELECT SUM(l.Amount) FROM Budgeting.Loan l WHERE l.UserID = u.UserID) AS TotalLiabilities,
-    ((SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) - (SELECT SUM(l.Amount) FROM Budgeting.Debt l WHERE l.UserID = u.UserID)) AS NetWorth
+    (SELECT SUM(d.outstandingBalance) FROM Budgeting.Debt d WHERE d.UserID = d.UserID) AS TotalLiabilities,
+    ((SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = u.UserID) - (SELECT SUM(d.OutstandingBalance) FROM Budgeting.Debt d WHERE d.UserID = d.UserID)) AS NetWorth
 FROM 
     Budgeting.Users u
+LEFT JOIN Budgeting.Accounts a on u.userId = a.UserId
 LEFT JOIN 
-    Budgeting.Inflow i ON u.UserID = i.UserID
+    Budgeting.Inflow i ON a.accountNumber = i.accountNumber
 LEFT JOIN 
-    Budgeting.Outflow o ON u.UserID = o.UserID
+    Budgeting.Outflow o ON a.accountNumber = o.accountNumber
 GROUP BY 
     u.UserID, u.FirstName, u.LastName, u.Email, u.Income;
-
    
    ----Monthly Budget Performance View---
    CREATE VIEW MonthlyBudgetPerformance AS
@@ -769,11 +777,11 @@ GROUP BY
     b.UserID, MONTH(o.Date), b.CategoryID, c.Name, b.Amount;
 
    --- Asset Allocation View --- 
-   CREATE VIEW AssetAllocation AS
+CREATE VIEW AssetAllocation AS
 SELECT 
     UserID,
-    TypeID,
-    TypeName,
+    a.TypeID,
+    at.TypeName,
     SUM(Value) AS TotalValue,
     SUM(Value) / (SELECT SUM(Value) FROM Budgeting.Asset WHERE UserID = a.UserID) AS Percentage
 FROM 
@@ -781,17 +789,17 @@ FROM
 JOIN 
     Budgeting.Types at ON a.TypeID = at.TypeID
 GROUP BY 
-    UserID, TypeID, TypeName;
+    UserID, a.TypeID, at.TypeName;
 
 ---- Debt allocation view --- 
-   CREATE VIEW DebtOverview AS
+CREATE VIEW DebtOverview AS
 SELECT 
     UserID,
-    SUM(Amount) AS TotalDebt,
-    AVG(Amount) AS AverageMonthlyPayment,
-    SUM(Amount) / (SELECT Income FROM Budgeting.Users WHERE UserID = l.UserID) AS DebtToIncomeRatio
+    SUM(d.OutstandingBalance) AS TotalDebt,
+    AVG(d.Payment) AS AverageMonthlyPayment,
+    SUM(d.OutstandingBalance) / (SELECT Income FROM Budgeting.Users WHERE UserID = d.UserID) AS DebtToIncomeRatio
 FROM 
-    Budgeting.Debt l
+    Budgeting.Debt d
 GROUP BY 
     UserID;
 
@@ -814,29 +822,34 @@ FROM
     Budgeting.Goals g;
 
 ----Transaction History View----
- CREATE VIEW TransactionHistory AS
+CREATE VIEW TransactionHistory AS
 SELECT 
-    UserID,
-    TransactionID,
+    u.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
     'Inflow' AS TransactionType,
-    AccountNumber,
-    InstitutionID,
+    i.AccountNumber,
+    fi.Name as InstitutionName,
     Amount,
     Date
 FROM 
-    Budgeting.Inflow
+    Budgeting.Inflow i
+    LEFT JOIN Budgeting.Accounts a on a.AccountNumber = i.AccountNumber
+    LEFT JOIN Budgeting.Users u on u.userID = a.UserId
+    LEFT JOIN Budgeting.FinancialInstitutions fi  on i.InstitutionId = fi.InstitutionId
 UNION ALL
 SELECT 
-    UserID,
-    TransactionID,
+    u.UserID,
+    Concat(u.FirstName,' ',u.LastName) as UserName,
     'Outflow' AS TransactionType,
-    AccountNumber,
-    InstitutionID,
+    o.AccountNumber,
+    fi.Name as InstitutionName,
     Amount,
     Date
 FROM 
-    Budgeting.Outflow;
-
+    Budgeting.Outflow o
+    LEFT JOIN Budgeting.Accounts a on o.AccountNumber = a.AccountNumber
+    LEFT JOIN Budgeting.Users u on u.userID = a.UserId
+    LEFT JOIN Budgeting.FinancialInstitutions fi  on o.InstitutionId = fi.InstitutionId
    
 ----Budget Category Breakdown view ----
    CREATE VIEW BudgetCategoryBreakdown AS
@@ -854,25 +867,27 @@ GROUP BY
 
  ----Income and Expense Trend Analysis View--
    CREATE VIEW IncomeExpenseTrendAnalysis AS
-SELECT 
-    UserID,
-    MONTH(Date) AS Month,
-    'Inflow' AS TransactionType,
-    SUM(Amount) AS TotalAmount
-FROM 
-    Budgeting.Inflow
-GROUP BY 
-    UserID, MONTH(Date)
+SELECT
+	UserID,
+	MONTH(Date) AS Month,
+	'Inflow' AS TransactionType,
+	SUM(Amount) AS TotalAmount
+FROM
+	Budgeting.Inflow
+GROUP BY
+	UserID,
+	MONTH(Date)
 UNION ALL
-SELECT 
-    UserID,
-    MONTH(Date) AS Month,
-    'Outflow' AS TransactionType,
-    SUM(Amount) AS TotalAmount
-FROM 
-    Budgeting.Outflow
-GROUP BY 
-    UserID, MONTH(Date);
+SELECT
+	UserID,
+	MONTH(Date) AS Month,
+	'Outflow' AS TransactionType,
+	SUM(Amount) AS TotalAmount
+FROM
+	Budgeting.Outflow
+GROUP BY
+	UserID,
+	MONTH(Date);
 
  -----Financial Health Score View----
   CREATE VIEW FinancialHealthScore AS
