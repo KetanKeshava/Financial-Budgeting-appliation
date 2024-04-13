@@ -1,0 +1,35 @@
+"UserID","UserName","TransactionType","AccountNumber","InstitutionName","Amount","Date"
+1,John Doe,Inflow,"12345678",Santander Bank,"1500.0000",2024-04-10
+1,John Doe,Inflow,"123456789",Santander Bank,"2500.0000",2024-04-10
+1,John Doe,Outflow,"123456789",Santander Bank,"1000.0000",2024-04-10
+1,John Doe,Outflow,"5432109876",Ally Bank,"50.0000",2024-04-10
+1,John Doe,Outflow,"5432109876",Ally Bank,"30.0000",2024-04-10
+1,John Doe,Outflow,"5432109876",Ally Bank,"20.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",Ally Bank,"45.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",Ally Bank,"35.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",Bank of America,"60.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",Bank of America,"30.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",TD Bank,"50.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",TD Bank,"40.0000",2024-04-10
+1,John Doe,Inflow,"12345678",PNC Bank,"3500.0000",2024-04-10
+1,John Doe,Outflow,"9876543210",TD Bank,"30.0000",2024-04-11
+1,John Doe,Outflow,"9876543210",TD Bank,"20.0000",2024-04-11
+1,John Doe,Outflow,"9876543210",Bank of America,"25.0000",2024-04-11
+1,John Doe,Outflow,"9876543210",Bank of America,"15.0000",2024-04-11
+1,John Doe,Outflow,"9876543210",Ally Bank,"25.0000",2024-04-11
+1,John Doe,Outflow,"9876543210",Ally Bank,"20.0000",2024-04-11
+1,John Doe,Outflow,"5432109876",Ally Bank,"25.0000",2024-04-11
+1,John Doe,Outflow,"5432109876",Ally Bank,"40.0000",2024-04-11
+1,John Doe,Outflow,"5432109876",Ally Bank,"35.0000",2024-04-12
+1,John Doe,Outflow,"9876543210",Ally Bank,"30.0000",2024-04-12
+1,John Doe,Outflow,"9876543210",Ally Bank,"40.0000",2024-04-12
+1,John Doe,Outflow,"9876543210",Bank of America,"40.0000",2024-04-12
+1,John Doe,Outflow,"9876543210",Bank of America,"50.0000",2024-04-12
+1,John Doe,Outflow,"9876543210",TD Bank,"30.0000",2024-04-12
+1,John Doe,Outflow,"9876543210",TD Bank,"40.0000",2024-04-12
+1,John Doe,Inflow,"12345678",PNC Bank,"4000.0000",2024-04-15
+1,John Doe,Inflow,"123456789",Santander Bank,"3000.0000",2024-04-15
+1,John Doe,Inflow,"12345678",Santander Bank,"2000.0000",2024-04-15
+1,John Doe,Inflow,"12345678",Santander Bank,"1800.0000",2024-04-20
+1,John Doe,Inflow,"123456789",Santander Bank,"2800.0000",2024-04-20
+1,John Doe,Inflow,"12345678",PNC Bank,"3800.0000",2024-04-20
